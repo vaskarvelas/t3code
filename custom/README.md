@@ -29,3 +29,12 @@ Then `git push --force-with-lease fork custom/stack` and rerun the script.
 - The patched copy does not update itself. After each package update run the script again, or the
   copy keeps running the old nightly.
 - Commit with the GitHub noreply address in this repo (`user.email`), not a work address.
+
+## Tracked fixes
+
+| Commits                                                                                        | Problem                                                                                                                                                   | Upstream                                                                                                                                                                                                                                   |
+| ---------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `fix(provider-acp): show oneOf/anyOf choices…`, `fix(effect-acp): decode titled multi-select…` | omp's `ask` choices were invisible in T3: the schema generator dropped the `anyOf` property (decode failed) and the adapter mapped only `enum`/`boolean`. | [#19659](https://github.com/pingdotgg/t3code/pull/19659) (fixes #15743) covers the same code. When it merges, `git rebase --skip` these commits. Only our `<id>__other` folding into the choice question's custom answer is not in #19659. |
+
+`fix/acp-elicitation-choices` on the fork holds the same two commits on upstream `main`, unsent
+because #19659 duplicates it.
