@@ -316,8 +316,20 @@ function flattenCompositions(
 ): Schema.Json {
   if (isJsonArray(value)) return value.map((child) => flattenCompositions(child, definitions));
   if (value === null || typeof value !== "object") return value;
+  // A `properties` map is not a schema: its keys are property names, and a property
+  // named `anyOf` or `allOf` (TitledMultiSelectItems.anyOf) must not be mistaken
+  // for a composition keyword.
+  const flattenChild = (key: string, child: Schema.Json): Schema.Json =>
+    key === "properties" && child !== null && typeof child === "object" && !isJsonArray(child)
+      ? Object.fromEntries(
+          Object.entries(child).map(([name, property]) => [
+            name,
+            flattenCompositions(property, definitions),
+          ]),
+        )
+      : flattenCompositions(child, definitions);
   const normalized = Object.fromEntries(
-    Object.entries(value).map(([key, child]) => [key, flattenCompositions(child, definitions)]),
+    Object.entries(value).map(([key, child]) => [key, flattenChild(key, child)]),
   );
   const { allOf, anyOf, ...base } = normalized;
   const merge = (left: Schema.Json, right: Schema.Json): Schema.Json => {
