@@ -27,6 +27,37 @@ describe("pinned ACP wire schemas", () => {
     expect(accepts({ sessionId: "session-1", mode: "url", message: "Sign in" })).toBe(false);
   });
 
+  it("accepts titled single- and multi-select choices in an elicitation form", () => {
+    // Shape sent by oh-my-pi's `ask` tool: `oneOf` choices, array `items.anyOf`
+    // choices, and a free-text sibling property.
+    const form = {
+      sessionId: "session-1",
+      mode: "form",
+      message: "Answer 2 questions",
+      requestedSchema: {
+        type: "object",
+        properties: {
+          q0: {
+            type: "string",
+            title: "Which scope?",
+            oneOf: [{ const: "Narrow", title: "Narrow", description: "Only this file" }],
+          },
+          q1: {
+            type: "array",
+            title: "Which checks?",
+            items: { anyOf: [{ const: "lint", title: "lint" }] },
+          },
+          q1__other: { type: "string", title: "Other" },
+        },
+      },
+    };
+    expect(Schema.is(V2.CreateElicitationRequest)(form)).toBe(true);
+    expect(Schema.is(V1.CreateElicitationRequest)(form)).toBe(true);
+    const emptyChoices = structuredClone(form);
+    emptyChoices.requestedSchema.properties.q1.items = { anyOf: [] };
+    expect(Schema.is(V2.CreateElicitationRequest)(emptyChoices)).toBe(false);
+  });
+
   it("keeps v1 command inputs compatible with native agents", () => {
     const command = { name: "plan", description: "Make a plan", input: { hint: "Task" } };
     expect(Schema.is(V1.AvailableCommand)(command)).toBe(true);
