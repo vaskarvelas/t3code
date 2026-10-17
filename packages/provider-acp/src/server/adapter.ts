@@ -84,6 +84,7 @@ import {
   makeAcpClientPolicyGrants,
   unknownRecord,
 } from "./clientPolicy.ts";
+import { acpElicitationContent, acpElicitationForm } from "./elicitationForm.ts";
 import {
   makeAcpClientTerminals,
   resolveEmbeddedTerminalContent,
@@ -930,22 +931,6 @@ function selectAutoApprovedPermissionOption(
     selectPermissionOptionId(request, "accept") ??
     selectPermissionOptionId(request, "acceptForSession")
   );
-}
-
-function elicitationContent(
-  answers: ProviderUserInputAnswers,
-  allowedKeys: ReadonlySet<string>,
-): Record<string, EffectAcpSchema.ElicitationContentValue> {
-  const content: Record<string, EffectAcpSchema.ElicitationContentValue> = {};
-  for (const [key, value] of Object.entries(answers)) {
-    if (!allowedKeys.has(key)) continue;
-    if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") {
-      content[key] = value;
-    } else if (Array.isArray(value)) {
-      content[key] = value.filter((entry): entry is string => typeof entry === "string");
-    }
-  }
-  return content;
 }
 
 interface ActiveTextSegment {
@@ -5439,29 +5424,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
               const properties = unknownRecord(requestedSchema?.properties) ?? {};
               const elicitationScopeId =
                 "sessionId" in params ? params.sessionId : `request:${params.requestId}`;
-              const questions = Object.entries(properties).map(
-                ([id, property], index): OrchestrationV2UserInputQuestion => {
-                  const record = unknownRecord(property);
-                  const enumValues = Array.isArray(record?.enum)
-                    ? record.enum.filter((value): value is string => typeof value === "string")
-                    : [];
-                  const options =
-                    enumValues.length > 0
-                      ? enumValues.map((value) => ({ label: value, description: value }))
-                      : record?.type === "boolean"
-                        ? [
-                            { label: "true", description: "Yes" },
-                            { label: "false", description: "No" },
-                          ]
-                        : [];
-                  return {
-                    id,
-                    header: nonEmptyText(record?.title, `Question ${index + 1}`),
-                    question: nonEmptyText(record?.description, params.message),
-                    options,
-                  };
-                },
-              );
+              const form = acpElicitationForm(properties, params.message);
               const userInput = yield* requestUserInputWithAdmission(
                 handlerGeneration,
                 Effect.gen(function* () {
@@ -5473,7 +5436,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   return {
                     nativeItemId: nativeRequestId,
                     nativeRequestId,
-                    questions,
+                    questions: form.questions,
                   };
                 }),
                 transportRequestId,
@@ -5483,10 +5446,7 @@ export const makeAcpAdapterV2 = Effect.fn("makeAcpAdapterV2")(function* (
                   ? ({ action: "cancel" } as const)
                   : ({
                       action: "accept",
-                      content: elicitationContent(
-                        userInput.answers,
-                        new Set(Object.keys(properties)),
-                      ),
+                      content: acpElicitationContent(userInput.answers, form),
                     } as const);
               yield* userInput.acknowledgeNativeResponse;
               return response;
