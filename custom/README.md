@@ -37,6 +37,10 @@ choosing another reply replaces the current playback. Markdown is converted to d
 Playback runs on the desktop machine, including when the thread uses a remote environment.
 Web browsers, mobile clients and other desktop platforms do not expose this local-only action.
 
+The helper source, dependency pins, number tests and `install-tts.py` live in the private
+[hyprwhspr-custom repository](https://github.com/vaskarvelas/hyprwhspr-custom).
+Run `python3 install-tts.py` from that checkout to deploy the shared speech helper.
+
 This customization calls `~/.local/bin/omarchy-read-aloud --stdin --replace`, with reply text on
 stdin, never through the clipboard or a shell. The helper must retain its lock while generating
 and playing speech, replace any previous playback with `--replace`, and exit nonzero on failure.
