@@ -84,6 +84,12 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   },
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getClientPlatform: () => clientPlatform,
+  ...(clientPlatform === "linux"
+    ? {
+        readAloud: (text: string) => ipcRenderer.invoke(IpcChannels.READ_ALOUD_CHANNEL, text),
+        stopReadAloud: () => ipcRenderer.invoke(IpcChannels.STOP_READ_ALOUD_CHANNEL),
+      }
+    : {}),
   setNotificationBadge: (badge) =>
     ipcRenderer.invoke(IpcChannels.SET_NOTIFICATION_BADGE_CHANNEL, badge),
   onNotificationBadgeClear: (listener) => {

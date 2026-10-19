@@ -30,6 +30,39 @@ Then `git push --force-with-lease fork custom/stack` and rerun the script.
   copy keeps running the old nightly.
 - Commit with the GitHub noreply address in this repo (`user.email`), not a work address.
 
+## Local read aloud (Linux desktop)
+
+Completed assistant replies have a **Read aloud** action beside Copy. Press it again to stop;
+choosing another reply replaces the current playback. Markdown is converted to displayed text.
+Playback runs on the desktop machine, including when the thread uses a remote environment.
+Web browsers, mobile clients and other desktop platforms do not expose this local-only action.
+
+This customization calls `~/.local/bin/omarchy-read-aloud --stdin --replace`, with reply text on
+stdin, never through the clipboard or a shell. The helper must retain its lock while generating
+and playing speech, replace any previous playback with `--replace`, and exit nonzero on failure.
+The local installation uses only Supertonic 3, preset `F1`, speed `1.20`, via its Python/ONNX CPU runtime at
+`~/.local/share/omarchy-tts/supertonic`. Models are downloaded during setup; runtime synthesis
+uses `auto_download=False` and makes no cloud request. Greek-containing text uses `el`,
+otherwise `en`; mixed sentences remain intact rather than splitting into isolated words.
+The helper removes invisible Unicode presentation selectors and formatting controls before
+synthesis: Supertonic rejects selectors such as U+FE0F in emoji-bearing replies. Combining
+diacritics are preserved so Greek accents are not lost.
+Greek input also passes through `~/.local/share/omarchy-tts/spoken_numbers.py`: cardinal
+quantities, comma decimals, percentages, euro amounts and times explicitly prefixed by `ώρα`
+are verbalized. Technical IDs, dotted versions/IPs, dates and leading-zero IDs remain literal.
+English also verbalizes quantities, dot/comma decimals, percentages, euros and times prefixed
+by `time`, using `num2words` for English cardinal words. Explicit v-prefixed versions,
+IPs, dates, leading-zero IDs and ambiguous comma-thousands stay literal. Digit-only input
+selects English. This changes speech input only, not the displayed reply.
+The old Kokoro/Piper environments, weights and script-based language splitter were removed.
+
+This patch changes both the web bundle and Electron main/preload, so `rebuild.sh`'s server-only
+graft cannot ship it. Build/package both client artifacts against the matching nightly version
+and preserve its public relay/Clerk build configuration and native dependencies.
+The local speech-enabled copy is `~/apps/t3code-nightly-read-aloud-20261019`;
+`~/.local/bin/t3code-nightly-custom` selects it on the next launch. The previous
+`~/apps/t3code-nightly-patched` installation is retained.
+
 ## Tracked fixes
 
 | Commits                                                                                        | Problem                                                                                                                                                   | Upstream                                                                                                                                                                                                                                   |
