@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 
+import { acpMcpToolCallOutput } from "./adapter.ts";
 import type * as EffectAcpSchema from "effect-acp/compat";
 
 import {
@@ -1655,6 +1656,138 @@ describe("extractMcpToolCallIdentity", () => {
     });
 
     expect(extractMcpToolCallIdentity(toolCall)).toBeUndefined();
+  });
+
+  it("recovers T3 identity from omp xd://mcp__t3_code_html_render write on start", () => {
+    const toolCall = toolCallFromUpdate({
+      sessionUpdate: "tool_call",
+      toolCallId: "call-omp-write",
+      kind: "execute",
+      title: "Rendering status card",
+      status: "in_progress",
+      rawInput: {
+        path: "xd://mcp__t3_code_html_render",
+        content: JSON.stringify({ html: "<h1>Dashboard</h1>", height: 1835 }),
+        i: "Rendering status card",
+      },
+    });
+
+    expect(extractMcpToolCallIdentity(toolCall)).toEqual({
+      server: "t3-code",
+      tool: "html_render",
+      input: { html: "<h1>Dashboard</h1>", height: 1835 },
+    });
+  });
+
+  it("recovers T3 identity from omp tool_call_update completion via rawOutput.details.xdev", () => {
+    const toolCall = toolCallFromUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "call-omp-complete",
+      status: "completed",
+      rawOutput: {
+        content: [{ type: "text", text: '{"htmlRender":true}' }],
+        details: {
+          xdev: {
+            tool: "mcp__t3_code_html_render",
+            mode: "execute",
+            args: { html: "<h1>Dashboard</h1>", height: 1835 },
+            inner: {
+              serverName: "t3-code",
+              mcpToolName: "html_render",
+              isError: false,
+              rawContent: [],
+            },
+          },
+        },
+        isError: false,
+      },
+    });
+
+    expect(extractMcpToolCallIdentity(toolCall)).toEqual({
+      server: "t3-code",
+      tool: "html_render",
+      input: { html: "<h1>Dashboard</h1>", height: 1835 },
+    });
+  });
+
+  it("leaves xd:// read calls unidentified", () => {
+    const startRead = toolCallFromUpdate({
+      sessionUpdate: "tool_call",
+      toolCallId: "call-omp-read",
+      kind: "read",
+      title: "Reading tool docs",
+      status: "in_progress",
+      rawInput: {
+        path: "xd://mcp__t3_code_html_render",
+      },
+    });
+    expect(extractMcpToolCallIdentity(startRead)).toBeUndefined();
+
+    const helpCompleted = toolCallFromUpdate({
+      sessionUpdate: "tool_call_update",
+      toolCallId: "call-omp-help",
+      kind: "read",
+      status: "completed",
+      rawInput: {
+        path: "xd://mcp__t3_code_html_render",
+      },
+      rawOutput: {
+        content: [{ type: "text", text: "Help text" }],
+        details: {
+          xdev: {
+            tool: "mcp__t3_code_html_render",
+            mode: "help",
+            inner: {
+              serverName: "t3-code",
+              mcpToolName: "html_render",
+            },
+          },
+        },
+      },
+    });
+    expect(extractMcpToolCallIdentity(helpCompleted)).toBeUndefined();
+  });
+
+  it("strips details.xdev from turn item output to prevent echoing args", () => {
+    const rawOutput = {
+      content: [{ type: "text", text: '{"htmlRender":true}' }],
+      details: {
+        xdev: {
+          tool: "mcp__t3_code_html_render",
+          mode: "execute",
+          args: { html: "x".repeat(10_000), height: 1835 },
+          inner: {
+            serverName: "t3-code",
+            mcpToolName: "html_render",
+            isError: false,
+            rawContent: [],
+          },
+        },
+      },
+      isError: false,
+    };
+
+    expect(acpMcpToolCallOutput(rawOutput)).toEqual({
+      content: [{ type: "text", text: '{"htmlRender":true}' }],
+    });
+
+    const errorOutput = {
+      ...rawOutput,
+      details: {
+        xdev: {
+          ...rawOutput.details.xdev,
+          inner: {
+            ...rawOutput.details.xdev.inner,
+            isError: true,
+          },
+        },
+      },
+    };
+
+    expect(acpMcpToolCallOutput(errorOutput)).toEqual({
+      content: [{ type: "text", text: '{"htmlRender":true}' }],
+      isError: true,
+    });
   });
 });
 

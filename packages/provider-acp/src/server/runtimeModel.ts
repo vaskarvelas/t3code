@@ -1079,7 +1079,69 @@ export function extractMcpToolCallIdentity(
     readonly embeddedTerminalCommands?: ReadonlyArray<string>;
   },
 ): AcpMcpToolCallIdentity | undefined {
+  const rawOutput = isRecord(toolCall.data.rawOutput) ? toolCall.data.rawOutput : undefined;
+  const details = isRecord(rawOutput?.details) ? rawOutput.details : undefined;
+  const xdev = isRecord(details?.xdev) ? details.xdev : undefined;
+  if (xdev !== undefined) {
+    if (xdev.mode === "help") {
+      return undefined;
+    }
+    const inner = isRecord(xdev.inner) ? xdev.inner : undefined;
+    let xdevServer: string | undefined;
+    let xdevTool: string | undefined;
+    if (typeof inner?.serverName === "string" && typeof inner?.mcpToolName === "string") {
+      xdevServer = inner.serverName.trim();
+      xdevTool = inner.mcpToolName.trim();
+    } else if (typeof xdev.tool === "string") {
+      const match =
+        /^mcp__(?<server>.+?)__(?<tool>.+)$/i.exec(xdev.tool.trim()) ??
+        /^mcp__(?<server>t3[-_ ]?code)[_-](?<tool>[A-Za-z0-9_.-]+)$/i.exec(xdev.tool.trim());
+      if (match?.groups?.tool) {
+        xdevServer = (match.groups.server ?? "t3-code").trim();
+        xdevTool = match.groups.tool.trim();
+      }
+    }
+    if (xdevServer && xdevTool) {
+      const input = isRecord(xdev.args) ? xdev.args : undefined;
+      if (/^t3[-_ ]?code$/i.test(xdevServer) && T3_MCP_TOOL_NAMES.has(xdevTool)) {
+        return { server: "t3-code", tool: xdevTool, ...(input !== undefined ? { input } : {}) };
+      }
+      if (!/^t3[-_ ]?code$/i.test(xdevServer)) {
+        return { server: xdevServer, tool: xdevTool, ...(input !== undefined ? { input } : {}) };
+      }
+    }
+  }
   const rawInput = isRecord(toolCall.data.rawInput) ? toolCall.data.rawInput : undefined;
+  if (typeof rawInput?.path === "string" && rawInput.path.trim().startsWith("xd://")) {
+    if (toolCall.kind === "read") {
+      return undefined;
+    }
+    const rawInputPath = rawInput.path.trim();
+    const xdMatch =
+      /^xd:\/\/mcp__(?<server>.+?)__(?<tool>[A-Za-z0-9_.-]+)$/i.exec(rawInputPath) ??
+      /^xd:\/\/mcp__(?<server>t3[-_ ]?code)[_-](?<tool>[A-Za-z0-9_.-]+)$/i.exec(rawInputPath);
+    if (xdMatch?.groups?.server && xdMatch?.groups?.tool) {
+      const xdServer = xdMatch.groups.server.trim();
+      const xdTool = xdMatch.groups.tool.trim();
+      let input: Record<string, unknown> | undefined;
+      if (typeof rawInput.content === "string") {
+        try {
+          const parsed = JSON.parse(rawInput.content);
+          if (isRecord(parsed)) {
+            input = parsed;
+          }
+        } catch {
+          // ACP agents choose their own quoting; malformed JSON keeps input empty
+        }
+      }
+      if (/^t3[-_ ]?code$/i.test(xdServer) && T3_MCP_TOOL_NAMES.has(xdTool)) {
+        return { server: "t3-code", tool: xdTool, ...(input !== undefined ? { input } : {}) };
+      }
+      if (!/^t3[-_ ]?code$/i.test(xdServer)) {
+        return { server: xdServer, tool: xdTool, ...(input !== undefined ? { input } : {}) };
+      }
+    }
+  }
   const meta = isRecord(toolCall.data.meta) ? toolCall.data.meta : undefined;
   const server = typeof rawInput?.server === "string" ? rawInput.server.trim() : "";
   const tool = typeof rawInput?.tool === "string" ? rawInput.tool.trim() : "";

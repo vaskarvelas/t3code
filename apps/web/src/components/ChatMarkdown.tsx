@@ -19,6 +19,7 @@ import {
   CHAT_MARKDOWN_REMARK_PLUGINS_WITH_BREAKS,
   CHAT_MARKDOWN_REHYPE_PLUGINS,
 } from "@t3tools/shared/markdownPipeline";
+import { HTML_RENDER_MIN_HEIGHT, injectHtmlRenderBootstrap } from "@t3tools/shared/htmlRender";
 import { useAtomValue } from "@effect/atom-react";
 import {
   COMPOSER_CONTEXT_CLIPBOARD_MIME,
@@ -34,6 +35,7 @@ import {
   InfoIcon,
   LightbulbIcon,
   MailIcon,
+  Maximize2Icon,
   MessageSquareIcon,
   MessageSquareWarningIcon,
   OctagonAlertIcon,
@@ -158,6 +160,8 @@ import { createIncrementalHighlightedDocument } from "../lib/incrementalHighligh
 import { HighlightedCodeLines } from "./chat/HighlightedCodeLines";
 import { RenderErrorBoundary } from "./RenderErrorBoundary";
 import { MermaidDiagram } from "./chat/MermaidDiagram";
+import { HtmlRenderDialog } from "./chat/HtmlRenderDialog";
+import { HtmlRenderDocument } from "./files/BrowserDocumentFrame";
 import { useTheme } from "../hooks/useTheme";
 import { getClientSettings, useClientSettings } from "../hooks/useSettings";
 import {
@@ -1044,6 +1048,163 @@ function MarkdownMermaidCodeBlock({
             </pre>
           ) : null}
         </RenderErrorBoundary>
+      ) : (
+        children
+      )}
+    </MarkdownCodeBlock>
+  );
+}
+
+function isRenderableHtmlCodeBlock(
+  language: string,
+  code: string,
+  meta: string | undefined,
+): boolean {
+  if (language === "html-render") {
+    return true;
+  }
+  if (language === "html") {
+    if (meta !== undefined && /\brender\b/i.test(meta)) {
+      return true;
+    }
+    if (/^\s*(?:<!doctype\s+html|<html\b)/i.test(code)) {
+      return true;
+    }
+    if (
+      /<style\b/i.test(code) &&
+      /<(?:main|section|header|article|div|table|svg|details|body)\b/i.test(code)
+    ) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function MarkdownHtmlCodeBlock({
+  code,
+  language,
+  fenceTitle,
+  theme,
+  isStreaming,
+  threadRef,
+  children,
+}: {
+  code: string;
+  language: string;
+  fenceTitle: string | null;
+  theme: "light" | "dark";
+  isStreaming: boolean;
+  threadRef: ScopedThreadRef | undefined;
+  children: ReactNode;
+}) {
+  const [showCode, setShowCode] = useState(false);
+  const [contentHeight, setContentHeight] = useState(480);
+  const [expanded, setExpanded] = useState(false);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+
+  const searching = use(MarkdownFindContext);
+  const revealSource = useCallback(() => setShowCode(true), []);
+  const sourceRevealRef = useFindRevealRef(revealSource);
+  const showPreview = !showCode && !isStreaming && code.trim().length > 0;
+
+  useEffect(() => {
+    if (!showPreview) {
+      return;
+    }
+    const prepared = injectHtmlRenderBootstrap(code);
+    const url = URL.createObjectURL(new Blob([prepared], { type: "text/html;charset=utf-8" }));
+    // oxlint-disable-next-line react/set-state-in-effect -- Synchronizes the scoped Blob URL lifecycle with the preview iframe.
+    setBlobUrl(url);
+    return () => {
+      URL.revokeObjectURL(url);
+    };
+  }, [code, showPreview]);
+
+  const fitPage = useCallback(
+    (nextHeight: number) =>
+      setContentHeight(Math.min(8000, Math.max(HTML_RENDER_MIN_HEIGHT, Math.round(nextHeight)))),
+    [],
+  );
+
+  const toggleLabel = showCode ? "Show preview" : "Show code";
+  const viewToggle = isStreaming ? null : (
+    <>
+      {showPreview && blobUrl !== null ? (
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                type="button"
+                variant="ghost-muted"
+                size="icon-xs"
+                onClick={() => setExpanded(true)}
+                aria-label="Open full screen"
+              />
+            }
+          >
+            <Maximize2Icon className="size-3" />
+          </TooltipTrigger>
+          <TooltipPopup side="top">Open full screen</TooltipPopup>
+        </Tooltip>
+      ) : null}
+      <Tooltip>
+        <TooltipTrigger
+          render={
+            <Button
+              type="button"
+              variant="ghost-muted"
+              size="icon-xs"
+              onClick={() => setShowCode((value) => !value)}
+              aria-label={toggleLabel}
+            />
+          }
+        >
+          {showCode ? <GlobeIcon className="size-3" /> : <CodeIcon className="size-3" />}
+        </TooltipTrigger>
+        <TooltipPopup side="top">{toggleLabel}</TooltipPopup>
+      </Tooltip>
+    </>
+  );
+
+  return (
+    <MarkdownCodeBlock
+      code={code}
+      language={language}
+      fenceTitle={fenceTitle}
+      theme={theme}
+      isStreaming={isStreaming}
+      canWrap={!showPreview}
+      diagram={showPreview}
+      viewToggle={viewToggle}
+    >
+      {showPreview ? (
+        <>
+          <div className="relative w-full overflow-hidden" style={{ height: contentHeight }}>
+            {blobUrl !== null ? (
+              <HtmlRenderDocument
+                key={blobUrl}
+                src={blobUrl}
+                title={fenceTitle ?? "HTML preview"}
+                threadRef={threadRef}
+                className="block size-full"
+                onContentHeight={fitPage}
+              />
+            ) : null}
+          </div>
+          {expanded && blobUrl !== null ? (
+            <HtmlRenderDialog
+              src={blobUrl}
+              title={fenceTitle ?? "HTML preview"}
+              threadRef={threadRef}
+              onClose={() => setExpanded(false)}
+            />
+          ) : null}
+          {searching ? (
+            <pre ref={sourceRevealRef} hidden>
+              {code}
+            </pre>
+          ) : null}
+        </>
       ) : (
         children
       )}
@@ -3249,16 +3410,23 @@ const CHAT_MARKDOWN_COMPONENTS = {
     return <MarkdownDetails open={detailsOpen}>{children}</MarkdownDetails>;
   },
   pre: function MarkdownPre({ node, children, ...props }) {
-    const { resolvedTheme, diffThemeName, expandMedia, isStreaming, onRunShellCommand, text } = use(
-      ChatMarkdownRendererContext,
-    );
+    const {
+      resolvedTheme,
+      diffThemeName,
+      expandMedia,
+      isStreaming,
+      onRunShellCommand,
+      text,
+      threadRef,
+    } = use(ChatMarkdownRendererContext);
     const codeBlock = extractCodeBlock(children);
     if (!codeBlock) {
       return <pre {...props}>{children}</pre>;
     }
 
     const language = extractFenceLanguage(codeBlock.className);
-    const fenceTitle = extractFenceTitle(extractPreCodeMeta(node));
+    const preCodeMeta = extractPreCodeMeta(node);
+    const fenceTitle = extractFenceTitle(preCodeMeta);
     const highlightedCode = (
       <RenderErrorBoundary
         resetKeys={[codeBlock.code, language, diffThemeName, isStreaming]}
@@ -3291,6 +3459,20 @@ const CHAT_MARKDOWN_COMPONENTS = {
         >
           {highlightedCode}
         </MarkdownMermaidCodeBlock>
+      );
+    }
+    if (isRenderableHtmlCodeBlock(language, codeBlock.code, preCodeMeta)) {
+      return (
+        <MarkdownHtmlCodeBlock
+          code={codeBlock.code}
+          language={language}
+          fenceTitle={fenceTitle}
+          theme={resolvedTheme}
+          isStreaming={isStreaming}
+          threadRef={threadRef}
+        >
+          {highlightedCode}
+        </MarkdownHtmlCodeBlock>
       );
     }
     return (

@@ -638,9 +638,20 @@ function makeProviderThread(input: {
   };
 }
 
-function acpMcpToolCallOutput(rawOutput: unknown): unknown {
+export function acpMcpToolCallOutput(rawOutput: unknown): unknown {
   const record = unknownRecord(rawOutput);
   if (record === undefined) return rawOutput;
+  const details = unknownRecord(record.details);
+  const xdev = unknownRecord(details?.xdev);
+  if (xdev !== undefined) {
+    return {
+      ...(Array.isArray(record.content) ? { content: record.content } : {}),
+      ...(record.isError === true ||
+      unknownRecord(unknownRecord(unknownRecord(record.details)?.xdev)?.inner)?.isError === true
+        ? { isError: true }
+        : {}),
+    };
+  }
   if (!("result" in record) && !("error" in record)) return rawOutput;
   const result = unknownRecord(record.result);
   const resultOutput =
