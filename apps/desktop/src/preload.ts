@@ -88,6 +88,9 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     ? {
         readAloud: (text: string) => ipcRenderer.invoke(IpcChannels.READ_ALOUD_CHANNEL, text),
         stopReadAloud: () => ipcRenderer.invoke(IpcChannels.STOP_READ_ALOUD_CHANNEL),
+        getDictationState: () => ipcRenderer.invoke(IpcChannels.GET_DICTATION_STATE_CHANNEL),
+        controlDictation: (action: "start" | "stop") =>
+          ipcRenderer.invoke(IpcChannels.CONTROL_DICTATION_CHANNEL, action),
       }
     : {}),
   setNotificationBadge: (badge) =>

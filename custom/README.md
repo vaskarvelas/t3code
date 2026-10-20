@@ -63,9 +63,22 @@ The old Kokoro/Piper environments, weights and script-based language splitter we
 This patch changes both the web bundle and Electron main/preload, so `rebuild.sh`'s server-only
 graft cannot ship it. Build/package both client artifacts against the matching nightly version
 and preserve its public relay/Clerk build configuration and native dependencies.
-The local speech-enabled copy is `~/apps/t3code-nightly-read-aloud-20261019`;
-`~/.local/bin/t3code-nightly-custom` selects it on the next launch. The previous
-`~/apps/t3code-nightly-patched` installation is retained.
+The existing installation is `~/apps/t3code-nightly-html-render-20261020`, selected by
+`~/.local/bin/t3code-nightly-custom`. Update its artifacts in place rather than creating a
+new desktop directory for each customization; retain a rollback archive before cutover.
+
+## Local dictation (Linux desktop)
+
+Click the composer microphone to start recording, then Stop to transcribe. The result is
+appended to the existing draft, not sent automatically. This uses hyprwhspr's local capture
+socket instead of simulated keystrokes or clipboard paste; the existing F9 shortcut and
+configuration are unchanged. Finish an active F9 recording before starting composer capture.
+The daemon must already be running. Standalone web, mobile and other desktop platforms do
+not expose this control. Shipping it requires both web and Electron main/preload artifacts;
+the server-only graft cannot install it.
+The microphone is installed in that same app as build `dictation-20261020-working-tree`.
+Its pre-update archive is
+`~/.local/state/t3code-custom-builds/dictation-20261020/previous-app.asar`.
 
 ## Tracked fixes
 

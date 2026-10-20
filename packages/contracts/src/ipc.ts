@@ -1025,12 +1025,22 @@ export const DesktopPreviewRecordingSaveInputSchema = Schema.Struct({
 export const SystemSettingsPaneSchema = Schema.Literals(["full-disk-access"]);
 export type SystemSettingsPane = typeof SystemSettingsPaneSchema.Type;
 
+export const DesktopDictationStateSchema = Schema.Literals([
+  "unavailable",
+  "idle",
+  "recording",
+  "processing",
+]);
+export type DesktopDictationState = typeof DesktopDictationStateSchema.Type;
+
 export interface DesktopBridge {
   getAppBranding: () => DesktopAppBranding | null;
   getPathForFile?: (file: File) => string;
   getClientPlatform?: () => string;
   readAloud?: (text: string) => Promise<void>;
   stopReadAloud?: () => Promise<void>;
+  getDictationState?: () => Promise<DesktopDictationState>;
+  controlDictation?: (action: "start" | "stop") => Promise<string>;
   setNotificationBadge?: (badge: { count: number; image: string | null }) => Promise<void>;
   onNotificationBadgeClear?: (listener: () => void) => () => void;
   onTrackpadScrollEnd?: (listener: () => void) => () => void;

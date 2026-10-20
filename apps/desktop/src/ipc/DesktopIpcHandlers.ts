@@ -4,6 +4,7 @@ import { receiveProviderAuthCallback, cancelProviderAuthCallback } from "./metho
 import * as DesktopIpc from "./DesktopIpc.ts";
 import { installNotificationBadge } from "./methods/notificationBadge.ts";
 import { readAloud, stopReadAloud } from "./methods/readAloud.ts";
+import { controlDictation, getDictationState } from "./methods/dictation.ts";
 import { getClientSettings, setClientSettings } from "./methods/clientSettings.ts";
 import {
   clearConnectionCatalog,
@@ -88,6 +89,8 @@ export const installDesktopIpcHandlers = Effect.fn("desktop.ipc.installHandlers"
   yield* installNotificationBadge();
   yield* ipc.handle(readAloud);
   yield* ipc.handle(stopReadAloud);
+  yield* ipc.handle(getDictationState);
+  yield* ipc.handle(controlDictation);
   yield* PreviewIpc.installPreviewEventForwarding();
 
   yield* ipc.handle(AppActivationIpc.setReady);
